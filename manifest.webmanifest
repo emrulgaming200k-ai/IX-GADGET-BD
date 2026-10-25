@@ -1,0 +1,19 @@
+{
+  "name": "IX GADGET BD",
+  "short_name": "IX GADGET",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07080f",
+  "theme_color": "#07080f",
+  "lang": "bn",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- সাধারণ ফাংশন ----------
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "emrulparsonal@gmail.com"
+        && request.auth.token.email_verified == true;
+    }
+    function signedIn() { return request.auth != null; }
+    function uRef() { return /databases/$(database)/documents/users/$(request.auth.uid); }
+
+    // একই ব্যবহারকারী ২০ সেকেন্ডের মধ্যে দ্বিতীয় অর্ডার দিতে পারবে না।
+    // অর্ডারের সাথে একই ব্যাচে users/{uid}.lo = এখনকার সময় লিখতে হয়।
+    function cooled() {
+      return getAfter(uRef()).data.get('lo', null) == request.time
+        && (!exists(uRef())
+            || get(uRef()).data.get('lo', timestamp.value(0)) < request.time - duration.value(20, 's'));
+    }
+
+    function validOrder() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id','name','ph','ad','items','total','dc','pm','tx','st','d','uid','created'])
+        && d.uid == request.auth.uid
+        && d.id is string && d.id.size() >= 6 && d.id.size() <= 24
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+        && d.ph is string && d.ph.matches('^01[3-9][0-9]{8}$')
+        && d.ad is string && d.ad.size() >= 5 && d.ad.size() <= 400
+        && d.items is list && d.items.size() > 0 && d.items.size() <= 20
+        && d.total is number && d.total > 0 && d.total < 5000000
+        && d.dc is number && d.dc >= 0 && d.dc <= 2000
+        && d.st == 0
+        && d.pm in ['cod','bkash','nagad','rocket']
+        && d.tx is string && d.tx.size() <= 20
+        && d.d is string && d.d.size() <= 40
+        && d.created == request.time;
+    }
+
+    function validUser() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['name','ph','email','addrs','ts','lo'])
+        && (!('name' in d) || (d.name is string && d.name.size() <= 80))
+        && (!('ph' in d) || (d.ph is string && d.ph.size() <= 20))
+        && (!('email' in d) || (d.email is string && d.email.size() <= 100))
+        && (!('addrs' in d) || (d.addrs is list && d.addrs.size() <= 10))
+        && (!('lo' in d)
+            || d.lo == request.time
+            || (resource != null && 'lo' in resource.data && d.lo == resource.data.lo));
+    }
+
+    function validReview() {
+      let d = request.resource.data;
+      return signedIn()
+        && d.keys().hasOnly(['pid','r','t','n','ts','uid'])
+        && d.uid == request.auth.uid
+        && d.r is int && d.r >= 1 && d.r <= 5
+        && d.t is string && d.t.size() >= 1 && d.t.size() <= 300
+        && d.n is string && d.n.size() <= 40
+        && d.pid is string && d.pid.size() <= 40
+        && d.ts is number;
+    }
+
+    // ---------- ক্যাটালগ (সব প্রোডাক্ট একটি ডকুমেন্টে, কম রিড খরচ) ----------
+    match /catalog/{id} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['j','n','ts'])
+        && request.resource.data.j is string
+        && request.resource.data.j.size() < 950000;
+    }
+
+    // ---------- সেটিংস ও গোপন তথ্য ----------
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /secrets/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ---------- অর্ডার ----------
+    match /orders/{orderId} {
+      allow create: if signedIn() && validOrder() && cooled();
+      allow get: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if signedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow update: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid
+        && resource.data.st == 0
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['st'])
+        && request.resource.data.st == 4);
+      allow delete: if isAdmin();
+    }
+
+    // ---------- ব্যবহারকারীর প্রোফাইল ----------
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid && validUser();
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------- রিভিউ (প্রতি প্রোডাক্টে প্রতি ইউজারের একটি) ----------
+    match /reviews/{rid} {
+      allow read: if true;
+      allow create: if validReview() && rid == request.auth.uid + '_' + request.resource.data.pid;
+      allow update: if validReview() && resource.data.uid == request.auth.uid
+        && rid == request.auth.uid + '_' + request.resource.data.pid;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---------- নিউজলেটার ----------
+    match /subs/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['email','created'])
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('^[^@ ]+@[^@ ]+[.][^@ ]{2,}$')
+        && request.resource.data.email.size() <= 100
+        && request.resource.data.created == request.time;
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,12 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com https://cdnjs.cloudflare.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://www.google.com https://*.googleapis.com https://*.firebaseio.com https://api.cloudinary.com https://www.gstatic.com; frame-src https://www.google.com https://www.youtube-nocookie.com https://ix-gadget-bd.firebaseapp.com https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; worker-src 'self'; manifest-src 'self'
+
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
